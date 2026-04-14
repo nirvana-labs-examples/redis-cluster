@@ -1,0 +1,23 @@
+# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/nirvana-labs/nirvana" {
+  version = "1.42.0"
+  hashes = [
+    "h1:P+CZpe9pKIbMXRxuPjESfgc+EJaDB6ebK/Nlb71Wdzs=",
+    "zh:1278a881af77b9c04f61e506acb429ea41d5fb84db5919a6fb8daaa64ed3a021",
+    "zh:17f475cb49fff8846d89a16d09551341d1f15eb96342826e82728e8669d024a1",
+    "zh:38d88dcfcae32f4a559904834e3424f3852ce64de29f34a94ed4c6761d8683e3",
+    "zh:412436e9f86e059054f7d1d398ef527015d82d2a4a91d0453d05330a30b7327b",
+    "zh:414c4924e3348ac852ea1270c6c9f60c9eb3211397b4fb98049dccf3ea01ac6b",
+    "zh:42f1c546e289bd52459fe7087cf35016c67843119fd0c64f5e5be01ebadf080b",
+    "zh:46cd900848ecc9b946096a8d12678981a75f24a64d29bd222bfc1845100e4007",
+    "zh:53c6b0bdf83c4b003094f9047c41a3bd003cfd1b17ed475a26bb6294406e3ab4",
+    "zh:725ccf883fb2e073e3633340df1b06e4055fb00710c159db09af69f0f3e89e91",
+    "zh:a550edd61a359b649c7ca327b375096301c108b4006d1b6f684c180b370902a9",
+    "zh:a8dcb28036b33bade9510c784472c431213af611b8c419b1a15eee11c015db36",
+    "zh:f809ab383cca0a5f83072981c64208cbd7fa67e986a86ee02dd2c82333221e32",
+    "zh:faf9cd221a6455a559fa5c53a979ba0dc216559b0457b1d9df9675f6af9d9b84",
+    "zh:fc8027f1f22654ea3bbb394f599f3572231f111f298e745614707fefc97ff5bf",
+  ]
+}

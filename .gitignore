@@ -1,0 +1,15 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfvars
+
+# Ansible
+ansible/inventory.ini
+
+# Temp
+/tmp/redis_password
+
+# OS
+.DS_Store
+*.swp

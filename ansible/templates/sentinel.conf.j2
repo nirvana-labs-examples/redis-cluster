@@ -1,0 +1,24 @@
+# Redis Sentinel Configuration
+# Managed by Ansible
+
+# Network
+port {{ sentinel_port }}
+bind 0.0.0.0
+
+# Sentinel (using private IP for master)
+sentinel monitor {{ redis_master_name }} {{ hostvars[groups['redis_nodes'][0]]['private_ip'] }} {{ redis_port }} {{ sentinel_quorum }}
+sentinel auth-pass {{ redis_master_name }} {{ redis_password }}
+sentinel down-after-milliseconds {{ redis_master_name }} {{ sentinel_down_after }}
+sentinel failover-timeout {{ redis_master_name }} {{ sentinel_failover_timeout }}
+sentinel parallel-syncs {{ redis_master_name }} {{ sentinel_parallel_syncs }}
+
+# Logging
+logfile {{ redis_log_dir }}/sentinel.log
+loglevel notice
+
+# Data directory
+dir {{ redis_data_dir }}
+
+# Announce (using private IP)
+sentinel announce-ip {{ private_ip }}
+sentinel announce-port {{ sentinel_port }}

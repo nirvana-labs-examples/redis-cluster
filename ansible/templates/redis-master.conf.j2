@@ -1,0 +1,56 @@
+# Redis Master Configuration
+# Managed by Ansible
+
+# Network
+bind {{ redis_bind }}
+port {{ redis_port }}
+protected-mode yes
+
+# Authentication
+requirepass {{ redis_password }}
+masterauth {{ redis_password }}
+
+# General
+daemonize no
+pidfile /var/run/redis/redis-server.pid
+loglevel notice
+logfile {{ redis_log_dir }}/redis-server.log
+
+# Data
+dir {{ redis_data_dir }}
+dbfilename dump.rdb
+
+# Memory
+maxmemory {{ redis_maxmemory }}
+maxmemory-policy {{ redis_maxmemory_policy }}
+
+# Persistence - AOF
+appendonly yes
+appendfilename "appendonly.aof"
+appendfsync everysec
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+
+# Persistence - RDB
+save 900 1
+save 300 10
+save 60 10000
+rdbcompression yes
+rdbchecksum yes
+
+# Replication
+replica-read-only yes
+repl-diskless-sync no
+repl-diskless-sync-delay 5
+repl-ping-replica-period 10
+repl-timeout 60
+
+# Limits
+maxclients 10000
+tcp-backlog 511
+tcp-keepalive 300
+timeout 0
+
+# Slow log
+slowlog-log-slower-than 10000
+slowlog-max-len 128

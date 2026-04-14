@@ -1,0 +1,248 @@
+---
+- name: Install and Configure Redis Cluster with Sentinel
+  hosts: redis_nodes
+  become: yes
+  vars:
+    # Redis configuration
+    redis_port: 6379
+    redis_bind: "0.0.0.0"
+    redis_password: "{{ lookup('password', '/tmp/redis_password length=24 chars=ascii_letters,digits') }}"
+    redis_maxmemory: "{{ (ansible_memtotal_mb * 0.7) | int }}mb"
+    redis_maxmemory_policy: "volatile-lru"
+
+    # Sentinel configuration
+    sentinel_port: 26379
+    sentinel_quorum: 2
+    sentinel_down_after: 5000
+    sentinel_failover_timeout: 60000
+    sentinel_parallel_syncs: 1
+    redis_master_name: "mymaster"
+
+    # Directories
+    redis_data_dir: "/var/lib/redis"
+    redis_log_dir: "/var/log/redis"
+    redis_config_dir: "/etc/redis"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install prerequisites
+      apt:
+        name:
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Redis GPG key
+      shell: |
+        curl -fsSL https://packages.redis.io/gpg | gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg --yes
+        chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
+
+    - name: Add Redis repository
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb {{ ansible_distribution_release }} main"
+        state: present
+        filename: redis
+
+    - name: Install Redis
+      apt:
+        name: redis-server
+        state: present
+        update_cache: yes
+
+    - name: Create Redis directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: redis
+        group: redis
+        mode: '0755'
+      loop:
+        - "{{ redis_data_dir }}"
+        - "{{ redis_log_dir }}"
+        - "{{ redis_config_dir }}"
+
+    - name: Stop Redis before configuration
+      systemd:
+        name: redis-server
+        state: stopped
+
+    - name: Configure Redis on master (first node)
+      template:
+        src: redis-master.conf.j2
+        dest: "{{ redis_config_dir }}/redis.conf"
+        owner: redis
+        group: redis
+        mode: '0640'
+      when: inventory_hostname == groups['redis_nodes'][0]
+
+    - name: Configure Redis on replicas
+      template:
+        src: redis-replica.conf.j2
+        dest: "{{ redis_config_dir }}/redis.conf"
+        owner: redis
+        group: redis
+        mode: '0640'
+      when: inventory_hostname != groups['redis_nodes'][0]
+
+    - name: Configure Sentinel on all nodes
+      template:
+        src: sentinel.conf.j2
+        dest: "{{ redis_config_dir }}/sentinel.conf"
+        owner: redis
+        group: redis
+        mode: '0640'
+
+    - name: Create Redis systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Redis In-Memory Data Store
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=redis
+          Group=redis
+          ExecStart=/usr/bin/redis-server {{ redis_config_dir }}/redis.conf
+          ExecStop=/usr/bin/redis-cli -p {{ redis_port }} -a {{ redis_password }} shutdown
+          Restart=always
+          RestartSec=3
+          LimitNOFILE=65535
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/redis.service
+        mode: '0644'
+      notify: Reload systemd
+
+    - name: Create Sentinel systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Redis Sentinel
+          After=network.target redis.service
+
+          [Service]
+          Type=simple
+          User=redis
+          Group=redis
+          ExecStart=/usr/bin/redis-server {{ redis_config_dir }}/sentinel.conf --sentinel
+          ExecStop=/usr/bin/redis-cli -p {{ sentinel_port }} shutdown nosave
+          Restart=always
+          RestartSec=3
+          LimitNOFILE=65535
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/redis-sentinel.service
+        mode: '0644'
+      notify: Reload systemd
+
+    - name: Flush handlers
+      meta: flush_handlers
+
+    - name: Start Redis on master first
+      systemd:
+        name: redis
+        state: started
+        enabled: yes
+      when: inventory_hostname == groups['redis_nodes'][0]
+
+    - name: Wait for master to be ready
+      wait_for:
+        port: "{{ redis_port }}"
+        delay: 2
+        timeout: 30
+      when: inventory_hostname == groups['redis_nodes'][0]
+
+    - name: Start Redis on replicas
+      systemd:
+        name: redis
+        state: started
+        enabled: yes
+      when: inventory_hostname != groups['redis_nodes'][0]
+
+    - name: Wait for replicas to be ready
+      wait_for:
+        port: "{{ redis_port }}"
+        delay: 2
+        timeout: 30
+      when: inventory_hostname != groups['redis_nodes'][0]
+
+    - name: Start Sentinel on all nodes
+      systemd:
+        name: redis-sentinel
+        state: started
+        enabled: yes
+
+    - name: Wait for Sentinel to be ready
+      wait_for:
+        port: "{{ sentinel_port }}"
+        delay: 2
+        timeout: 30
+
+    - name: Save credentials to file (master only)
+      copy:
+        content: |
+          Redis Cluster Credentials
+          ==========================
+          Master Name: {{ redis_master_name }}
+          Password: {{ redis_password }}
+
+          Nodes:
+          {% for host in groups['redis_nodes'] %}
+          - {{ host }}: {{ hostvars[host]['ansible_host'] }}:{{ redis_port }}
+          {% endfor %}
+
+          Sentinel Endpoints:
+          {% for host in groups['redis_nodes'] %}
+          - {{ hostvars[host]['ansible_host'] }}:{{ sentinel_port }}
+          {% endfor %}
+
+          Connect to master:
+          redis-cli -h {{ hostvars[groups['redis_nodes'][0]]['ansible_host'] }} -p {{ redis_port }} -a {{ redis_password }}
+
+          Connect via Sentinel:
+          redis-cli -h {{ hostvars[groups['redis_nodes'][0]]['ansible_host'] }} -p {{ sentinel_port }} SENTINEL get-master-addr-by-name {{ redis_master_name }}
+        dest: /root/redis_credentials.txt
+        mode: '0600'
+      when: inventory_hostname == groups['redis_nodes'][0]
+
+    - name: Get cluster info from master
+      command: redis-cli -p {{ redis_port }} -a {{ redis_password }} INFO replication
+      register: replication_info
+      when: inventory_hostname == groups['redis_nodes'][0]
+      changed_when: false
+
+    - name: Display cluster status
+      debug:
+        msg: |
+          ================================================
+          Redis Cluster with Sentinel deployed!
+          ================================================
+          Master Name: {{ redis_master_name }}
+          Password: {{ redis_password }}
+
+          Nodes:
+          {% for host in groups['redis_nodes'] %}
+          - {{ host }}: {{ hostvars[host]['ansible_host'] }}:{{ redis_port }}
+          {% endfor %}
+
+          Sentinel Endpoints:
+          {% for host in groups['redis_nodes'] %}
+          - {{ hostvars[host]['ansible_host'] }}:{{ sentinel_port }}
+          {% endfor %}
+
+          Credentials saved to: /root/redis_credentials.txt (on master)
+          ================================================
+      when: inventory_hostname == groups['redis_nodes'][0]
+
+  handlers:
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
