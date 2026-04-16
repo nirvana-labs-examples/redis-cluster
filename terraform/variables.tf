@@ -33,16 +33,10 @@ variable "node_count" {
   default     = 3
 }
 
-variable "vcpu" {
-  description = "Number of vCPUs per node"
-  type        = number
-  default     = 2
-}
-
-variable "memory_gb" {
-  description = "Memory size in GB per node"
-  type        = number
-  default     = 4
+variable "instance_type" {
+  description = "Instance type (e.g., n1-standard-2, n1-standard-4)"
+  type        = string
+  default     = "n1-standard-2"
 }
 
 variable "boot_volume_gb" {
