@@ -296,3 +296,7 @@ redis-cli -h <any_ip> -p 26379 SENTINEL replicas mymaster
 cd terraform
 terraform destroy -var='ssh_public_key=...' -var='project_id=...'
 ```
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE.md).
